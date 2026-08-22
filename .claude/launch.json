@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "concall-app",
+      "runtimeExecutable": "/Users/shivanggupta/Desktop/Concall MVP/.venv/bin/streamlit",
+      "runtimeArgs": ["run", "app.py", "--server.headless", "true"],
+      "port": 8501
+    }
+  ]
+}
