@@ -8,6 +8,11 @@ for the full product spec.
 Pipeline: PDF transcript -> parse & chunk (by speaker turn / Q&A pair) -> embed (Voyage AI)
 -> store (Chroma, local) -> retrieve + generate (Claude) -> Streamlit chat UI.
 
+For a function-by-function walkthrough of how the pipeline actually runs (with a diagram),
+see [`docs/internals.html`](docs/internals.html) — download it and open in a browser, or view it
+live at [claude.ai/code/artifact/fa72f88a-ecfb-4f79-975f-0bc0cdfd204c](https://claude.ai/code/artifact/fa72f88a-ecfb-4f79-975f-0bc0cdfd204c)
+(private artifact link — visible only to the account that created it).
+
 ## Prerequisites
 
 - Python 3.9+
@@ -77,5 +82,6 @@ src/ingest.py                    ingestion orchestrator (run as a script)
 src/query.py                     retrieval + Claude generation with citations
 app.py                           Streamlit chat UI
 data/chroma/                     local vector DB (gitignored, rebuilt by ingestion)
+docs/internals.html              function-by-function pipeline walkthrough, with diagram
 files/                           earlier TF-IDF prototype, superseded by src/
 ```

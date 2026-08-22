@@ -1,0 +1,696 @@
+<title>Concall Assistant Internals</title>
+<style>
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c1015;
+      --surface: #12161d;
+      --surface-2: #171c24;
+      --ink: #e7e9ed;
+      --ink-soft: #a2a9b4;
+      --ink-faint: #6b7280;
+      --line: #262c36;
+      --amber: #e0a64a;
+      --amber-soft: rgba(224,166,74,0.13);
+      --amber-line: rgba(224,166,74,0.45);
+      --teal: #5fb3ac;
+      --teal-soft: rgba(95,179,172,0.13);
+      --teal-line: rgba(95,179,172,0.45);
+      --code-bg: #0f1319;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c1015;
+    --surface: #12161d;
+    --surface-2: #171c24;
+    --ink: #e7e9ed;
+    --ink-soft: #a2a9b4;
+    --ink-faint: #6b7280;
+    --line: #262c36;
+    --amber: #e0a64a;
+    --amber-soft: rgba(224,166,74,0.13);
+    --amber-line: rgba(224,166,74,0.45);
+    --teal: #5fb3ac;
+    --teal-soft: rgba(95,179,172,0.13);
+    --teal-line: rgba(95,179,172,0.45);
+    --code-bg: #0f1319;
+  }
+
+  :root {
+    --bg: #f5f6f4;
+    --surface: #ffffff;
+    --surface-2: #eef0ec;
+    --ink: #14181f;
+    --ink-soft: #454c58;
+    --ink-faint: #848c98;
+    --line: #dde0e1;
+    --amber: #a86c17;
+    --amber-soft: #f5e9d3;
+    --amber-line: #d9b878;
+    --teal: #216461;
+    --teal-soft: #dcebe8;
+    --teal-line: #8fbdb9;
+    --code-bg: #f0f1ec;
+
+    --serif: ui-serif, "New York", "Iowan Old Style", Charter, "Georgia", serif;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+
+    color-scheme: light dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 780px);
+    justify-content: center;
+    gap: 56px;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 48px 24px 120px;
+  }
+
+  /* ---- Sidebar nav ---- */
+  nav.toc {
+    position: sticky;
+    top: 40px;
+    align-self: start;
+    font-family: var(--sans);
+  }
+  nav.toc .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 14px;
+  }
+  nav.toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 1px solid var(--line);
+  }
+  nav.toc li { margin: 0; }
+  nav.toc a {
+    display: block;
+    padding: 7px 0 7px 16px;
+    margin-left: -1px;
+    border-left: 2px solid transparent;
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 13.5px;
+  }
+  nav.toc a:hover { color: var(--ink); border-left-color: var(--ink-faint); }
+  nav.toc .sub { padding-left: 30px; font-size: 12.5px; color: var(--ink-faint); }
+
+  main { min-width: 0; }
+
+  /* ---- Header ---- */
+  header.hero {
+    margin-bottom: 40px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 34px;
+    line-height: 1.2;
+    margin: 0 0 12px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  header.hero p.lede {
+    font-size: 16.5px;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  /* stat strip */
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .stat {
+    flex: 1 1 120px;
+    padding: 12px 16px;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .stat:last-child { border-right: none; }
+  .stat .n {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .stat .l {
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    margin-top: 2px;
+  }
+
+  /* ---- Sections ---- */
+  section { margin-bottom: 56px; scroll-margin-top: 32px; }
+  h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 23px;
+    margin: 0 0 6px;
+    letter-spacing: -0.005em;
+    scroll-margin-top: 32px;
+  }
+  h2 .idx { color: var(--ink-faint); font-weight: 400; margin-right: 8px; }
+  .section-dek {
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    margin: 0 0 22px;
+    max-width: 62ch;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 15px;
+    margin: 28px 0 6px;
+  }
+  p { margin: 0 0 14px; max-width: 66ch; }
+  ul, ol.steps { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; max-width: 62ch; }
+  strong { font-weight: 700; }
+  a { color: inherit; }
+  code {
+    font-family: var(--mono);
+    font-size: 0.87em;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0.1em 0.4em;
+  }
+
+  /* pipeline tag pills */
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .tag.ingest { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber-line); }
+  .tag.query { background: var(--teal-soft); color: var(--teal); border: 1px solid var(--teal-line); }
+
+  /* function step card */
+  .step {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 14px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+  }
+  .step:last-child { padding-bottom: 0; }
+  .step .num {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-faint);
+    padding-top: 2px;
+  }
+  .step h4 {
+    margin: 0 0 4px;
+    font-family: var(--mono);
+    font-size: 14.5px;
+    font-weight: 700;
+  }
+  .step h4 .file {
+    font-weight: 400;
+    color: var(--ink-faint);
+    font-size: 12px;
+    margin-left: 8px;
+  }
+  .step p { font-size: 14.5px; margin-bottom: 8px; }
+  .step .also { font-size: 13px; color: var(--ink-faint); }
+
+  pre {
+    font-family: var(--mono);
+    font-size: 12.8px;
+    line-height: 1.55;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 10px 0 14px;
+  }
+  pre .c { color: var(--ink-faint); }
+  pre .k { color: var(--amber); }
+  pre .s { color: var(--teal); }
+
+  /* diagram */
+  figure.diagram {
+    margin: 0 0 32px;
+    padding: 20px 18px 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  figure.diagram svg { width: 100%; height: auto; display: block; }
+  figure.diagram .lane-ingest { fill: var(--amber-soft); stroke: var(--amber-line); }
+  figure.diagram .lane-query { fill: var(--teal-soft); stroke: var(--teal-line); }
+  figure.diagram .lane-store { fill: var(--surface-2); stroke: var(--ink-faint); }
+  figure.diagram text { fill: var(--ink); font-family: var(--sans); }
+  figure.diagram text.mono { font-family: var(--mono); }
+  figure.diagram text.dim { fill: var(--ink-faint); }
+  figure.diagram .flow-ingest { stroke: var(--amber); fill: none; }
+  figure.diagram .flow-query { stroke: var(--teal); fill: none; }
+  figure.diagram .flow-neutral { stroke: var(--ink-faint); fill: none; }
+  figcaption {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    max-width: 68ch;
+  }
+
+  /* concept cards */
+  .concept {
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    margin-bottom: 12px;
+  }
+  .concept h4 { margin: 0 0 6px; font-size: 14.5px; }
+  .concept p { font-size: 14px; margin-bottom: 0; }
+  .concept p + p { margin-top: 8px; }
+
+  /* interview quote callouts */
+  .talk {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-left: 3px solid var(--ink-faint);
+    background: var(--surface);
+    margin-bottom: 12px;
+    border-radius: 0 4px 4px 0;
+  }
+  .talk.ingest { border-left-color: var(--amber); }
+  .talk.query { border-left-color: var(--teal); }
+  .talk q {
+    font-size: 14.5px;
+    font-style: normal;
+    quotes: none;
+  }
+  .talk .why { font-size: 12.5px; color: var(--ink-faint); margin-top: 4px; }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--ink-faint);
+  }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; padding: 32px 18px 90px; }
+    nav.toc {
+      position: static;
+      margin-bottom: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    nav.toc ol { border-left: none; }
+    nav.toc a { padding: 5px 0; margin-left: 0; border-left: none; }
+    h1 { font-size: 27px; }
+  }
+</style>
+
+<div class="shell">
+  <nav class="toc">
+    <div class="eyebrow">On this page</div>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#diagram">The two pipelines</a></li>
+      <li><a href="#ingestion">Ingestion, step by step</a>
+        <ol>
+          <li class="sub"><a href="#ing-1">1. Extract text</a></li>
+          <li class="sub"><a href="#ing-2">2. Split cover / body</a></li>
+          <li class="sub"><a href="#ing-3">3. Parse speaker turns</a></li>
+          <li class="sub"><a href="#ing-4">4. Chunk</a></li>
+          <li class="sub"><a href="#ing-5">5. Embed + store</a></li>
+        </ol>
+      </li>
+      <li><a href="#query">Query, step by step</a></li>
+      <li><a href="#concepts">Concepts worth knowing cold</a></li>
+      <li><a href="#talking-points">Interview talking points</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="kicker">Concall Assistant &mdash; system internals</div>
+      <h1>How the concall assistant actually works</h1>
+      <p class="lede">A function-by-function walkthrough of the ingestion and query pipelines &mdash; grounded in the real code and the real JINDALSAW transcripts currently loaded, written so you can explain it, not just describe it.</p>
+      <div class="stats">
+        <div class="stat"><div class="n">152</div><div class="l">chunks indexed</div></div>
+        <div class="stat"><div class="n">5</div><div class="l">quarters, 1 ticker</div></div>
+        <div class="stat"><div class="n">voyage-3.5</div><div class="l">embedding model</div></div>
+        <div class="stat"><div class="n">1024</div><div class="l">vector dimensions</div></div>
+        <div class="stat"><div class="n">&le;1600</div><div class="l">chars / chunk</div></div>
+        <div class="stat"><div class="n">claude-sonnet-5</div><div class="l">generation model</div></div>
+      </div>
+    </header>
+
+    <section id="overview">
+      <h2><span class="idx">&sect;</span>Overview</h2>
+      <p>This is a <strong>RAG system</strong> &mdash; Retrieval-Augmented Generation. Instead of asking Claude a question cold (where it can only answer from what it learned during training, and might invent numbers), you first <em>retrieve</em> the exact transcript passages relevant to the question, hand those to Claude as context, and instruct it to answer only from what's in front of it. That's the mechanism behind the PRD's core requirement: <em>&ldquo;answer only from retrieved context &mdash; no hallucinated figures.&rdquo;</em></p>
+      <p>There are exactly two pipelines, and they only ever meet at one place: the vector store.</p>
+      <ul>
+        <li><span class="tag ingest">INGESTION</span> &nbsp;runs once, offline, whenever a new transcript PDF is added. It reads, chunks, and embeds the transcript, then writes it into the store.</li>
+        <li><span class="tag query">QUERY</span> &nbsp;runs once per user question, live. It embeds the question, searches the store for the closest chunks, and asks Claude to answer using only those.</li>
+      </ul>
+    </section>
+
+    <section id="diagram">
+      <h2><span class="idx">&sect;</span>The two pipelines</h2>
+      <p class="section-dek">Everything below is one diagram: what runs at ingestion time (top, amber) and what runs at query time (bottom, teal), meeting in the middle at the one piece of shared state.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 1000 460" role="img" aria-label="Ingestion pipeline runs top to bottom into the Chroma vector store: PDF extracted, split into cover and body text, chunked by speaker turn and Q&amp;A pair, embedded, and written to the store. Query pipeline runs below: a question is embedded with the same model, searched against the store by cosine similarity, assembled into a prompt, and sent to Claude, which returns a cited answer.">
+          <defs>
+            <marker id="arrA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="flow-ingest" style="fill: var(--amber); stroke:none;"/>
+            </marker>
+            <marker id="arrT" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="flow-query" style="fill: var(--teal); stroke:none;"/>
+            </marker>
+            <marker id="arrN" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--ink-faint); stroke:none;"/>
+            </marker>
+          </defs>
+
+          <!-- row labels -->
+          <text x="20" y="18" class="mono" font-size="11" font-weight="700" fill="var(--amber)">INGESTION &mdash; once per new transcript</text>
+          <text x="20" y="318" class="mono" font-size="11" font-weight="700" fill="var(--teal)">QUERY &mdash; once per user question</text>
+
+          <!-- ============ INGESTION ROW (y 30-94) ============ -->
+          <g font-size="12">
+            <rect x="20" y="30" width="170" height="64" rx="4" class="lane-ingest"/>
+            <text x="105" y="56" text-anchor="middle" font-weight="700">PDF transcript</text>
+            <text x="105" y="72" text-anchor="middle" class="dim" font-size="10.5">cocnall-scripts/&hellip;</text>
+
+            <rect x="210" y="30" width="170" height="64" rx="4" class="lane-ingest"/>
+            <text x="295" y="52" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">extract_pages()</text>
+            <text x="295" y="66" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">split_cover_and_body()</text>
+            <text x="295" y="82" text-anchor="middle" class="dim" font-size="10">parse.py</text>
+
+            <rect x="400" y="30" width="170" height="64" rx="4" class="lane-ingest"/>
+            <text x="485" y="52" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">parse_speaker_turns()</text>
+            <text x="485" y="66" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">chunk_turns()</text>
+            <text x="485" y="82" text-anchor="middle" class="dim" font-size="10">parse.py &middot; chunk.py</text>
+
+            <rect x="590" y="30" width="170" height="64" rx="4" class="lane-ingest"/>
+            <text x="675" y="58" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">embed_documents()</text>
+            <text x="675" y="74" text-anchor="middle" class="dim" font-size="10">embeddings.py &middot; voyage-3.5</text>
+
+            <rect x="780" y="30" width="170" height="64" rx="4" class="lane-ingest"/>
+            <text x="865" y="58" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">upsert_chunks()</text>
+            <text x="865" y="74" text-anchor="middle" class="dim" font-size="10">store.py</text>
+
+            <!-- horizontal arrows -->
+            <line x1="190" y1="62" x2="206" y2="62" marker-end="url(#arrA)" class="flow-ingest"/>
+            <line x1="380" y1="62" x2="396" y2="62" marker-end="url(#arrA)" class="flow-ingest"/>
+            <line x1="570" y1="62" x2="586" y2="62" marker-end="url(#arrA)" class="flow-ingest"/>
+            <line x1="760" y1="62" x2="776" y2="62" marker-end="url(#arrA)" class="flow-ingest"/>
+          </g>
+
+          <!-- ============ STORE (y 190-260) ============ -->
+          <rect x="390" y="190" width="220" height="72" rx="4" class="lane-store" stroke-width="1.4"/>
+          <text x="500" y="216" text-anchor="middle" font-weight="700" font-size="13">Chroma vector store</text>
+          <text x="500" y="232" text-anchor="middle" class="dim" font-size="10.5">cosine-indexed vectors</text>
+          <text x="500" y="246" text-anchor="middle" class="dim" font-size="10.5">+ text + metadata, on disk</text>
+
+          <!-- amber down into store -->
+          <path d="M865,94 C865,150 610,150 610,190" class="flow-ingest" marker-end="url(#arrA)"/>
+          <text x="700" y="145" text-anchor="middle" class="mono" font-size="10.5" fill="var(--amber)">writes vectors</text>
+
+          <!-- teal up out of store -->
+          <path d="M450,262 C450,300 485,300 485,330" class="flow-query" marker-end="url(#arrT)"/>
+          <text x="392" y="300" text-anchor="middle" class="mono" font-size="10.5" fill="var(--teal)">cosine search</text>
+
+          <!-- ============ QUERY ROW (y 330-394) ============ -->
+          <g font-size="12">
+            <rect x="20" y="330" width="170" height="64" rx="4" class="lane-query"/>
+            <text x="105" y="356" text-anchor="middle" font-weight="700">User question</text>
+            <text x="105" y="372" text-anchor="middle" class="dim" font-size="10.5">typed in the chat UI</text>
+
+            <rect x="210" y="330" width="170" height="64" rx="4" class="lane-query"/>
+            <text x="295" y="358" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">embed_query()</text>
+            <text x="295" y="374" text-anchor="middle" class="dim" font-size="10">embeddings.py &middot; voyage-3.5</text>
+
+            <rect x="400" y="330" width="170" height="64" rx="4" class="lane-query"/>
+            <text x="485" y="358" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">vector_query()</text>
+            <text x="485" y="374" text-anchor="middle" class="dim" font-size="10">store.py &middot; top-k + filter</text>
+
+            <rect x="590" y="330" width="170" height="64" rx="4" class="lane-query"/>
+            <text x="675" y="352" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">_format_context()</text>
+            <text x="675" y="366" text-anchor="middle" class="mono" font-weight="700" font-size="11.5">messages.create()</text>
+            <text x="675" y="382" text-anchor="middle" class="dim" font-size="10">query.py &middot; claude-sonnet-5</text>
+
+            <rect x="780" y="330" width="170" height="64" rx="4" class="lane-query"/>
+            <text x="865" y="356" text-anchor="middle" font-weight="700">Cited answer</text>
+            <text x="865" y="372" text-anchor="middle" class="dim" font-size="10.5">+ source chunks</text>
+
+            <line x1="190" y1="362" x2="206" y2="362" marker-end="url(#arrT)" class="flow-query"/>
+            <line x1="380" y1="362" x2="396" y2="362" marker-end="url(#arrT)" class="flow-query"/>
+            <line x1="570" y1="362" x2="586" y2="362" marker-end="url(#arrT)" class="flow-query"/>
+            <line x1="760" y1="362" x2="776" y2="362" marker-end="url(#arrT)" class="flow-query"/>
+          </g>
+        </svg>
+        <figcaption><strong>Why this shape matters:</strong> both <code>embed_documents()</code> and <code>embed_query()</code> call the exact same Voyage model (<code>voyage-3.5</code>). That's not incidental &mdash; a transcript chunk and a user's question only land near each other in vector space if the <em>same function mapped both into it</em>. Swap the embedding model on one side without re-embedding the other and every similarity score silently becomes meaningless.</figcaption>
+      </figure>
+    </section>
+
+    <section id="ingestion">
+      <h2><span class="idx">&sect;</span>Ingestion, step by step <span class="tag ingest">runs offline</span></h2>
+      <p class="section-dek">Triggered by <code>python -m src.ingest</code>. For every PDF under <code>cocnall-scripts/&lt;TICKER&gt;/</code>, this runs once and writes chunks into Chroma. Walking through <code>src/parse.py</code>, <code>src/chunk.py</code>, <code>src/embeddings.py</code> and <code>src/store.py</code> in call order:</p>
+
+      <div class="step" id="ing-1">
+        <div class="num">1</div>
+        <div>
+          <h4>extract_pages() <span class="file">parse.py</span></h4>
+          <p>Opens the PDF with <code>pdfplumber</code> and pulls raw text out of every page. At this point it's just a list of strings, one per page &mdash; no structure yet, just what the PDF's text layer contains.</p>
+        </div>
+      </div>
+
+      <div class="step" id="ing-2">
+        <div class="num">2</div>
+        <div>
+          <h4>split_cover_and_body() <span class="file">parse.py</span></h4>
+          <p>Every transcript PDF here is a SEBI Regulation-30 filing: a cover letter to the stock exchanges, a title page listing management attendees, <em>then</em> the actual dialogue. This function separates the two by scanning each page for markers like <code>"MANAGEMENT:"</code> &mdash; pages that have it are metadata pages, everything else is transcript body.</p>
+          <p class="also"><strong>extract_metadata()</strong> then regexes the cover text for the quarter (<code>Q\d\s*FY\s*\d{2,4}</code>), the actual call date, and the management roster &mdash; so quarter/date come from the document itself, not a guess based on the filename. This mattered in practice: two of the six source PDFs turned out to be byte-identical duplicates filed under different names, and one filename's date didn't match its content at all.</p>
+        </div>
+      </div>
+
+      <div class="step" id="ing-3">
+        <div class="num">3</div>
+        <div>
+          <h4>clean_body() &rarr; parse_speaker_turns() <span class="file">parse.py</span></h4>
+          <p><code>clean_body()</code> strips page-number footers, repeated header lines (company name, date) that PDF extraction reinserts on every page. <code>parse_speaker_turns()</code> then walks the cleaned lines looking for the pattern <code>"Name: text"</code> at the start of a line &mdash; every time it matches, that's a new turn; everything until the next match is that speaker continuing. Output: a plain list of <code>(speaker, text)</code> pairs, e.g. <code>("Narendra Mantri", "Our EBITDA margin for the quarter was...")</code>.</p>
+          <p class="also"><code>find_qa_start()</code> then scans those turns for the moderator's hand-off line (phrased inconsistently across quarters &mdash; "question-and-answer session" in some, "the first question is from&hellip;" in others) to split prepared remarks from Q&amp;A.</p>
+        </div>
+      </div>
+
+      <div class="step" id="ing-4">
+        <div class="num">4</div>
+        <div>
+          <h4>chunk_turns() <span class="file">chunk.py</span></h4>
+          <p>This is the retrieval-quality decision. Two different chunking rules, by section:</p>
+          <ul>
+            <li><strong>Prepared remarks:</strong> one chunk per speaker turn &mdash; each is already one person's continuous thought.</li>
+            <li><strong>Q&amp;A:</strong> one chunk per <em>exchange</em>, not per turn &mdash; the analyst's question and the full management answer (including any back-and-forth) are merged into a single chunk, bounded by the moderator's "next question" transitions. Split a Q&amp;A into separate question-chunk and answer-chunk and you can retrieve the answer without the question that gives it meaning.</li>
+          </ul>
+          <p>A single monologue can run to 2,000+ words with no natural break, which is both bad for retrieval precision (one giant chunk about "the CEO's opening remarks" matches everything and nothing) and can blow past an embedding provider's per-request token limit. So <code>_emit()</code> checks every candidate chunk against a 1,600-character cap and, if it's over, <code>_pack_sentences()</code> greedily re-packs it into multiple sentence-aligned pieces that share the same speaker/quarter/section metadata. Target: roughly 150&ndash;400 tokens per chunk &mdash; a coherent thought, not a fragment, not a wall of text.</p>
+          <pre><code><span class="c"># the shape every chunk ends up in, e.g.:</span>
+{
+  <span class="k">"chunk_id"</span>: <span class="s">"JINDALSAW_Q2FY26_QA003"</span>,
+  <span class="k">"ticker"</span>: <span class="s">"JINDALSAW"</span>, <span class="k">"quarter"</span>: <span class="s">"Q2FY26"</span>, <span class="k">"fiscal_year"</span>: <span class="s">"FY26"</span>,
+  <span class="k">"call_date"</span>: <span class="s">"2025-10-23"</span>, <span class="k">"speaker"</span>: <span class="s">"Bhavik Shah"</span>,
+  <span class="k">"speaker_role"</span>: <span class="s">"Analyst"</span>, <span class="k">"section"</span>: <span class="s">"Q&amp;A"</span>,
+  <span class="k">"text"</span>: <span class="s">"Bhavik Shah: The next year CAPEX will be...\nVinay Kumar: I think..."</span>
+}</code></pre>
+        </div>
+      </div>
+
+      <div class="step" id="ing-5">
+        <div class="num">5</div>
+        <div>
+          <h4>embed_documents() &rarr; upsert_chunks() <span class="file">embeddings.py &middot; store.py</span></h4>
+          <p><code>embed_documents()</code> sends chunk text to Voyage in batches of 15 (small on purpose &mdash; the free API tier caps at 3 requests/minute and 10K tokens/request; a batch that's too large or too frequent gets rate-limited, so <code>_embed()</code> retries with backoff and <code>ingest.py</code> sleeps between batches). Each chunk of text comes back as a 1024-number vector.</p>
+          <p><code>upsert_chunks()</code> writes <code>{id, vector, text, metadata}</code> into the Chroma collection, keyed by the stable <code>chunk_id</code> built in step 4. Re-running ingestion on the same PDF overwrites the same IDs rather than duplicating &mdash; that's what makes the whole pipeline safe to re-run.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="query">
+      <h2><span class="idx">&sect;</span>Query, step by step <span class="tag query">runs per question</span></h2>
+      <p class="section-dek">Triggered every time you hit Enter in the chat UI. All in <code>src/query.py</code>, calling out to <code>embeddings.py</code> and <code>store.py</code>.</p>
+
+      <div class="step">
+        <div class="num">1</div>
+        <div>
+          <h4>embed_query() <span class="file">embeddings.py</span></h4>
+          <p>The question text goes through the <em>same</em> Voyage call as ingestion, just with <code>input_type="query"</code> instead of <code>"document"</code> (Voyage optimizes the vector slightly differently for each, but both land in the same 1024-dimensional space). One question in, one 1024-number vector out.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">2</div>
+        <div>
+          <h4>retrieve() &rarr; vector_query() <span class="file">query.py &middot; store.py</span></h4>
+          <p>Chroma compares the question's vector against all stored chunk vectors using <strong>cosine similarity</strong> &mdash; the angle between two vectors, not their distance (see <a href="#concepts">below</a>) &mdash; and returns the closest <code>top_k</code> (default 8). If the UI's ticker/quarter filter is set, that becomes a metadata <code>where</code> clause, so the search only ever considers chunks matching e.g. <code>quarter = "Q2FY26"</code> &mdash; this is what lets a query be scoped to one company or one quarter without re-searching everything, straight out of PRD 5.3.</p>
+          <p><code>store.query()</code> converts Chroma's raw distance into a 0&ndash;1 <code>score</code> (<code>1 - distance</code>) attached to each returned chunk, purely for display in the Sources panel.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">3</div>
+        <div>
+          <h4>_format_context() + system prompt <span class="file">query.py</span></h4>
+          <p>The retrieved chunks get formatted into labeled blocks &mdash; <code>[Q2FY26 | Narendra Mantri (Management) | Prepared Remarks]</code> followed by the chunk text &mdash; and concatenated. This, plus the user's question, becomes the message sent to Claude, paired with a system prompt that does the actual grounding work:</p>
+          <pre><code><span class="c">Rules:</span>
+<span class="c">- Answer only using the provided excerpts. Never use outside</span>
+<span class="c">  knowledge or invent figures.</span>
+<span class="c">- Every factual claim must carry an inline citation in the</span>
+<span class="c">  form (Quarter, Speaker).</span>
+<span class="c">- If the excerpts don't contain the answer, say so plainly</span>
+<span class="c">  instead of guessing.</span></pre>
+          <p>This is the whole anti-hallucination mechanism, in plain sight: not a filter bolted on afterward, just an instruction plus the fact that nothing except the retrieved text is in the prompt for the model to draw on.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">4</div>
+        <div>
+          <h4>client.messages.create() <span class="file">query.py &middot; anthropic SDK</span></h4>
+          <p>The actual call to Claude (<code>claude-sonnet-5</code>). The response comes back as a list of content blocks &mdash; the code picks out the text block specifically (<code>next(b for b in resp.content if b.type == "text")</code>) rather than assuming the first block is the answer, since a response can include other block types alongside the text.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">5</div>
+        <div>
+          <h4>Back to the UI <span class="file">app.py</span></h4>
+          <p><code>answer()</code> returns <code>{"answer": &hellip;, "sources": hits}</code> &mdash; Streamlit renders the text directly under the chat bubble, and the source chunks (with quarter, speaker, role, section, relevance score) go into the collapsible "Sources" panel underneath. Nothing in the UI is invented at this layer; it's just displaying exactly what steps 1&ndash;4 produced.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="concepts">
+      <h2><span class="idx">&sect;</span>Concepts worth knowing cold</h2>
+      <p class="section-dek">The vocabulary that turns "I built a chatbot" into a conversation an interviewer will take seriously.</p>
+
+      <div class="concept">
+        <h4>Embedding</h4>
+        <p>A function that turns text into a fixed-length list of numbers (here, 1024 of them) such that texts with similar <em>meaning</em> end up with similar numbers &mdash; not similar spelling. "Debt reduction" and "paying down borrowings" land near each other even though they share almost no words. This is what makes semantic search possible at all: you're searching by meaning, not keyword match.</p>
+      </div>
+
+      <div class="concept">
+        <h4>Cosine similarity</h4>
+        <p>Two vectors, both anchored at the origin, form an angle. Cosine similarity is the cosine of that angle: 1.0 if they point the exact same direction (same meaning), 0 if perpendicular (unrelated), negative if opposite. Crucially it ignores vector <em>length</em> and only cares about <em>direction</em> &mdash; which is why it's the standard choice for comparing embeddings, where length is mostly an artifact of text length, not meaning.</p>
+        <svg viewBox="0 0 220 110" width="220" style="display:block;margin-top:8px" role="img" aria-label="Two vectors from the origin with a small angle theta between them, illustrating high cosine similarity.">
+          <line x1="14" y1="96" x2="180" y2="20" stroke="var(--teal)" stroke-width="1.6"/>
+          <line x1="14" y1="96" x2="196" y2="34" stroke="var(--ink-faint)" stroke-width="1.6"/>
+          <path d="M 44 84 A 34 34 0 0 1 52 76" fill="none" stroke="var(--ink-faint)" stroke-width="1"/>
+          <text x="56" y="84" font-size="11" fill="var(--ink-faint)" font-family="var(--sans)">&theta;</text>
+          <text x="184" y="18" font-size="10.5" fill="var(--teal)" font-family="var(--mono)">chunk</text>
+          <text x="198" y="42" font-size="10.5" fill="var(--ink-faint)" font-family="var(--mono)">question</text>
+        </svg>
+      </div>
+
+      <div class="concept">
+        <h4>Chunking strategy (fixed-window vs. semantic)</h4>
+        <p>The naive RAG approach splits documents every N tokens, regardless of what's mid-sentence. This project instead chunks on <em>structural</em> boundaries &mdash; speaker turns, Q&amp;A pairs &mdash; because a transcript's real unit of meaning is "what one person said" or "one question and its answer," not "the next 300 tokens." Retrieval is only as good as the chunks it's choosing between; a chunk that starts mid-thought hurts every downstream answer that draws on it.</p>
+      </div>
+
+      <div class="concept">
+        <h4>Metadata filtering</h4>
+        <p>Every chunk carries structured fields (ticker, quarter, speaker role, section) alongside its vector. Chroma's <code>where</code> clause lets a search be <em>vector similarity within a filtered subset</em> &mdash; "closest matches, but only from Q2FY26" &mdash; rather than re-ranking the whole corpus and hoping the right quarter surfaces near the top. This is what makes the ticker/quarter dropdowns in the UI actually work, and it's the exact mechanism PRD Phase 3 (scaling to a watchlist) depends on.</p>
+      </div>
+
+      <div class="concept">
+        <h4>Grounding / anti-hallucination</h4>
+        <p>Not a separate system &mdash; just prompt design plus context control. The model is never given the freedom to answer from its own training knowledge because the instructions explicitly forbid it <em>and</em> the only facts in the prompt are the retrieved excerpts. If retrieval returns nothing relevant, the code short-circuits before ever calling Claude (<code>if not hits: return "No relevant transcript chunks found"</code>) rather than letting the model try anyway.</p>
+      </div>
+
+      <div class="concept">
+        <h4>Idempotency</h4>
+        <p>Chunk IDs are deterministic (<code>{ticker}_{quarter}_QA003</code>, etc.), so re-running ingestion on a PDF you've already processed <em>overwrites</em> those IDs in Chroma instead of creating duplicates. This is what makes "just re-run ingestion" a safe answer to "the parser logic changed" &mdash; a property you want in any pipeline that might run more than once against the same input, and worth naming explicitly if asked about production-readiness.</p>
+      </div>
+    </section>
+
+    <section id="talking-points">
+      <h2><span class="idx">&sect;</span>Interview talking points</h2>
+      <p class="section-dek">Framed as things you decided and can defend &mdash; not just things that happened.</p>
+
+      <div class="talk ingest">
+        <div>
+          <q>&ldquo;I chunked by speaker turn and Q&amp;A pair instead of fixed token windows, because a transcript's natural unit of meaning is a person's full thought, not an arbitrary word count.&rdquo;</q>
+          <div class="why">Shows you understand retrieval quality is a chunking problem before it's a model problem.</div>
+        </div>
+      </div>
+      <div class="talk ingest">
+        <div>
+          <q>&ldquo;I derive quarter and call date from the document's own text, not the filename &mdash; I found duplicate and mislabeled source files during ingestion that filename-based logic would have silently gotten wrong.&rdquo;</q>
+          <div class="why">A concrete data-quality bug you caught, not a hypothetical.</div>
+        </div>
+      </div>
+      <div class="talk query">
+        <div>
+          <q>&ldquo;Grounding isn't a filter I bolted onto the model's output &mdash; the model literally has no other facts available to it than the retrieved chunks, plus an explicit instruction to cite every claim.&rdquo;</q>
+          <div class="why">Distinguishes prompt-level grounding from post-hoc fact-checking &mdash; a real distinction interviewers probe for.</div>
+        </div>
+      </div>
+      <div class="talk query">
+        <div>
+          <q>&ldquo;Metadata filtering runs inside the same vector search, not as a second pass &mdash; so scoping a question to one quarter doesn't mean re-ranking the whole corpus.&rdquo;</q>
+          <div class="why">Signals you know retrieval and filtering are one operation, not two.</div>
+        </div>
+      </div>
+      <div class="talk">
+        <div>
+          <q>&ldquo;Adding a second company is zero code changes &mdash; drop PDFs in a new ticker folder and re-run ingestion &mdash; because metadata comes from the document, chunk IDs are namespaced by ticker, and the store is schema-less beyond that.&rdquo;</q>
+          <div class="why">This is literally PRD Phase 3's exit criteria, and you can point at the code that satisfies it.</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Reflects <code>src/parse.py</code>, <code>src/chunk.py</code>, <code>src/embeddings.py</code>, <code>src/store.py</code>, <code>src/ingest.py</code>, <code>src/query.py</code> and <code>app.py</code> as of the current build in <code>concall-assistant</code>.
+    </footer>
+  </main>
+</div>
