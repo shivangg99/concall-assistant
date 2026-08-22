@@ -1,18 +1,19 @@
 """
-Ingestion pipeline: PDF -> parse -> chunk -> embed -> Chroma.
+Ingestion pipeline: R2 -> PDF -> parse -> chunk -> embed -> Chroma.
 
-Scans cocnall-scripts/<TICKER>/*.pdf. Adding a new company is just adding a
-new ticker folder with its transcript PDFs - no code changes needed.
-Re-running is idempotent: chunk_ids are stable, so upsert overwrites in place.
+Source PDFs live in Cloudflare R2 under <TICKER>/<filename>.pdf, not on local
+disk - see src/cloud.py. Adding a new company is just uploading its transcript
+PDFs under a new ticker prefix (python -m src.upload_transcripts) - no code
+changes needed. Re-running is idempotent: chunk_ids are stable, so upsert
+overwrites in place.
 """
 import argparse
-import glob
 import hashlib
-import os
 import time
 
 from dotenv import load_dotenv
 
+from . import cloud
 from .parse import parse_transcript
 from .chunk import chunk_turns
 from .embeddings import embed_documents
@@ -20,7 +21,6 @@ from .store import upsert_chunks, stats
 
 load_dotenv()
 
-SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cocnall-scripts")
 # Small batch + throttle so this works even on Voyage's unverified free tier
 # (3 requests/min, 10K tokens/min). Add a payment method on the Voyage
 # dashboard to lift this and speed up ingestion - the token quota stays free.
@@ -34,34 +34,36 @@ def _content_hash(turns) -> str:
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 
-def ingest_ticker(ticker: str, scripts_dir: str = SCRIPTS_DIR, verbose: bool = True):
-    pdf_paths = sorted(glob.glob(os.path.join(scripts_dir, ticker, "*.pdf")))
-    if not pdf_paths:
-        raise FileNotFoundError(f"No PDFs found for ticker {ticker} in {scripts_dir}")
+def ingest_ticker(ticker: str, verbose: bool = True):
+    keys = cloud.list_pdfs(ticker)
+    if not keys:
+        raise FileNotFoundError(f"No PDFs found in R2 under {ticker}/ (bucket: {cloud.BUCKET})")
 
     seen_hashes = {}
     all_chunks = []
 
-    for path in pdf_paths:
-        turns, meta = parse_transcript(path)
+    for key in keys:
+        filename = key.rsplit("/", 1)[-1]
+        pdf_bytes = cloud.download_bytes(key)
+        turns, meta = parse_transcript(pdf_bytes)
         if not meta["quarter"]:
             if verbose:
-                print(f"  SKIP {os.path.basename(path)}: could not determine quarter from PDF text")
+                print(f"  SKIP {filename}: could not determine quarter from PDF text")
             continue
 
         h = _content_hash(turns)
         if h in seen_hashes:
             if verbose:
-                print(f"  SKIP {os.path.basename(path)}: duplicate content of {seen_hashes[h]}")
+                print(f"  SKIP {filename}: duplicate content of {seen_hashes[h]}")
             continue
-        seen_hashes[h] = os.path.basename(path)
+        seen_hashes[h] = filename
 
         chunks = chunk_turns(
             turns, ticker, meta["quarter"], meta["fiscal_year"],
             meta["call_date"], meta["management_names"],
         )
         if verbose:
-            print(f"  {os.path.basename(path)} -> {meta['quarter']} ({meta['call_date']}): {len(chunks)} chunks")
+            print(f"  {filename} -> {meta['quarter']} ({meta['call_date']}): {len(chunks)} chunks")
         all_chunks.extend(chunks)
 
     if not all_chunks:
@@ -82,17 +84,11 @@ def ingest_ticker(ticker: str, scripts_dir: str = SCRIPTS_DIR, verbose: bool = T
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingest concall transcripts into the vector store.")
-    parser.add_argument("ticker", nargs="?", default=None, help="Ticker folder under cocnall-scripts/ (default: all)")
+    parser = argparse.ArgumentParser(description="Ingest concall transcripts (from R2) into the vector store.")
+    parser.add_argument("ticker", nargs="?", default=None, help="Ticker prefix in the R2 bucket (default: all)")
     args = parser.parse_args()
 
-    if args.ticker:
-        tickers = [args.ticker]
-    else:
-        tickers = sorted(
-            d for d in os.listdir(SCRIPTS_DIR)
-            if os.path.isdir(os.path.join(SCRIPTS_DIR, d))
-        )
+    tickers = [args.ticker] if args.ticker else cloud.list_tickers()
 
     total = 0
     for t in tickers:

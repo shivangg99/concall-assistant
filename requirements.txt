@@ -4,3 +4,4 @@ anthropic
 streamlit
 pdfplumber
 python-dotenv
+boto3

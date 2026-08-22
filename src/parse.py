@@ -18,8 +18,10 @@ BOUNDARY_RE = re.compile(r'next question|last question|first question', re.I)
 DISCONNECT_KEYWORDS = ("disconnect", "reconnect", "stay connected", "rejoin")
 
 
-def extract_pages(pdf_path: str):
-    with pdfplumber.open(pdf_path) as pdf:
+def extract_pages(pdf_source):
+    """pdf_source: a file path, or a file-like object (e.g. the BytesIO
+    src/cloud.py returns when a transcript is downloaded from R2 in memory)."""
+    with pdfplumber.open(pdf_source) as pdf:
         return [p.extract_text() or "" for p in pdf.pages]
 
 
@@ -132,9 +134,10 @@ def speaker_role(speaker: str, management_names: set) -> str:
     return "Analyst"
 
 
-def parse_transcript(pdf_path: str):
-    """Returns (turns, metadata) where turns = [(speaker, text), ...]."""
-    pages = extract_pages(pdf_path)
+def parse_transcript(pdf_source):
+    """pdf_source: path or file-like object. Returns (turns, metadata) where
+    turns = [(speaker, text), ...]."""
+    pages = extract_pages(pdf_source)
     cover_text, body_pages = split_cover_and_body(pages)
     metadata = extract_metadata(cover_text)
     cleaned = clean_body(body_pages, metadata["company_name"])
