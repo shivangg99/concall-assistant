@@ -21,10 +21,12 @@ from .store import upsert_chunks, stats
 
 load_dotenv()
 
-# Small batch + throttle so this works even on Voyage's unverified free tier
-# (3 requests/min, 10K tokens/min). Add a payment method on the Voyage
-# dashboard to lift this and speed up ingestion - the token quota stays free.
-# embeddings.py retries individual calls on rate-limit errors too.
+# Sized for Voyage's unverified-tier limits: 3 requests/min AND 10K tokens
+# PER REQUEST (not just per minute) - a batch that's too large fails outright
+# no matter how many times it's retried, it's not just a pacing problem.
+# At up to ~400 tokens/chunk, 15/batch stays safely under the 10K ceiling;
+# 21s spacing keeps to 3 req/min. Add a payment method on the Voyage
+# dashboard to lift both limits and speed this up.
 EMBED_BATCH_SIZE = 15
 SECONDS_BETWEEN_BATCHES = 21
 

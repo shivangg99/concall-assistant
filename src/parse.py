@@ -10,7 +10,7 @@ cocnall-scripts/<TICKER>/ and it parses the same way.
 import re
 import pdfplumber
 
-QUARTER_RE = re.compile(r'Q(\d)\s*FY\s*(\d{2,4})', re.I)
+QUARTER_RE = re.compile(r"Q(\d)\s*FY\s*['’]?\s*(\d{2,4})", re.I)
 DATE_RE = re.compile(r'([A-Z][a-z]+ \d{1,2},\s*20\d\d)')
 SPEAKER_RE = re.compile(r"^([A-Z][A-Za-z\.\'\-\s]{2,40}):\s+(.*)$")
 COVER_PAGE_MARKERS = ("SEBI (Listing Obligations", "MANAGEMENT:")
@@ -51,7 +51,13 @@ def extract_metadata(cover_text: str):
     fiscal_year = f"FY{qm.group(2)[-2:]}" if qm else None
 
     call_date = None
-    call_date_m = re.search(r'on\s+\w+day,\s+([A-Z][a-z]+ \d{1,2},\s*20\d\d)', cover_text)
+    # Companies phrase the filing date differently - "on Wednesday, July 15,
+    # 2026" (with weekday) vs "conducted on April 29, 2024" (without). Try
+    # the more specific pattern first, fall back to the looser one.
+    call_date_m = (
+        re.search(r'on\s+\w+day,\s+([A-Z][a-z]+ \d{1,2},\s*20\d\d)', cover_text)
+        or re.search(r'(?:conducted|held)\s+on\s+([A-Z][a-z]+ \d{1,2},\s*20\d\d)', cover_text)
+    )
     if call_date_m:
         from datetime import datetime
         try:
@@ -59,7 +65,7 @@ def extract_metadata(cover_text: str):
         except ValueError:
             call_date = None
 
-    mgmt_block = re.search(r'MANAGEMENT:(.*?)MODERATORS?:', cover_text, re.S)
+    mgmt_block = re.search(r'MANAGEMENT(?:\s+TEAM)?:(.*?)MODERATORS?:', cover_text, re.S)
     management_names = set()
     if mgmt_block:
         for line in mgmt_block.group(1).split("\n"):
@@ -138,8 +144,18 @@ def parse_transcript(pdf_source):
     """pdf_source: path or file-like object. Returns (turns, metadata) where
     turns = [(speaker, text), ...]."""
     pages = extract_pages(pdf_source)
-    cover_text, body_pages = split_cover_and_body(pages)
-    metadata = extract_metadata(cover_text)
+
+    # Quarter/date/management always live in the filing letter + title page,
+    # which are consistently the first couple of pages - but not every
+    # company's title page trips the COVER_PAGE_MARKERS check (e.g. one
+    # writes "NH MANAGEMENT TEAM:" instead of "MANAGEMENT:", which
+    # split_cover_and_body's substring match misses entirely, leaving it
+    # with no cover text to search at all). Search the raw first pages
+    # directly so metadata extraction doesn't depend on that detection.
+    header_text = "\n".join(pages[:2])
+    metadata = extract_metadata(header_text)
+
+    _, body_pages = split_cover_and_body(pages)
     cleaned = clean_body(body_pages, metadata["company_name"])
     turns = parse_speaker_turns(cleaned)
     return turns, metadata

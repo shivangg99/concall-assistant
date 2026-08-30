@@ -5,20 +5,25 @@ import anthropic
 from dotenv import load_dotenv
 
 from .embeddings import embed_query
-from .store import query as vector_query
+from .store import query as vector_query, available_tickers
 
 load_dotenv()
 
 GENERATION_MODEL = "claude-sonnet-5"
 
-SYSTEM_PROMPT = """You are a research assistant for a long-term equity investor. You answer \
+SYSTEM_PROMPT_TEMPLATE = """You are a research assistant for a long-term equity investor. You answer \
 questions strictly from the provided earnings-call transcript excerpts.
+
+You currently have transcripts for these tickers: {tickers}
 
 Rules:
 - Answer only using the provided excerpts. Never use outside knowledge or invent figures.
 - Every factual claim must carry an inline citation in the form (Quarter, Speaker), \
 e.g. (Q2FY26, Narendra Mantri).
-- If the excerpts don't contain the answer, say so plainly instead of guessing.
+- If the question is clearly about a company that is not in the ticker list above, say plainly \
+that you don't have transcripts for that company yet and name the tickers you do have - do not \
+try to answer it from another company's excerpts.
+- If the excerpts don't contain the answer for an in-scope company, say so plainly instead of guessing.
 - When asked about trends across quarters, organize the answer chronologically and cite each quarter used.
 - Be concise and precise; prefer the management's own phrasing over paraphrase for numbers/guidance."""
 
@@ -61,26 +66,41 @@ def _format_context(hits: list[dict]) -> str:
 
 
 def answer(question: str, top_k: int = 8, ticker: str = None, quarter: str = None, stream: bool = False):
+    known = available_tickers()
+
+    # A ticker filter (e.g. from the UI dropdown or a CLI --ticker) that
+    # isn't in the store yet is answered instantly, with no retrieval or
+    # LLM call needed - the filter itself already tells us the answer.
+    if ticker and ticker not in known:
+        avail = ", ".join(known) if known else "none yet - nothing has been ingested"
+        return {
+            "answer": f"I don't have transcripts for {ticker} yet. Tickers currently available: {avail}.",
+            "sources": [],
+        }
+
     hits = retrieve(question, top_k=top_k, ticker=ticker, quarter=quarter)
     if not hits:
         return {"answer": "No relevant transcript chunks found for this query.", "sources": []}
 
     context = _format_context(hits)
     user_message = f"Transcript excerpts:\n\n{context}\n\n---\n\nQuestion: {question}"
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+        tickers=", ".join(known) if known else "(none ingested yet)"
+    )
 
     client = _get_client()
     if stream:
         return client.messages.stream(
             model=GENERATION_MODEL,
             max_tokens=2048,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         ), hits
 
     resp = client.messages.create(
         model=GENERATION_MODEL,
         max_tokens=2048,
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
     )
     text = next((block.text for block in resp.content if block.type == "text"), "")

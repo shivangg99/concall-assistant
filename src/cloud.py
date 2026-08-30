@@ -72,3 +72,9 @@ def download_bytes(key: str) -> io.BytesIO:
 
 def upload_file(local_path: str, key: str):
     _get_client().upload_file(local_path, BUCKET, key)
+
+
+def upload_bytes(data: bytes, key: str):
+    """Write straight to R2 without a local file - used when a transcript is
+    fetched from a scraper directly into memory."""
+    _get_client().put_object(Bucket=BUCKET, Key=key, Body=data, ContentType="application/pdf")

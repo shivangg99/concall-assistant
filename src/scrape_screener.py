@@ -28,7 +28,7 @@ MONTHS = {
 }
 
 
-def _slug(date_label: str) -> str:
+def slug(date_label: str) -> str:
     """'Jul 2026' -> '07-26'."""
     month, year = date_label.split()
     return f"{MONTHS[month]}-{year[2:]}"
@@ -60,6 +60,15 @@ def fetch_transcripts(ticker: str, statement: str = "consolidated") -> list[dict
     return results
 
 
+def fetch_pdf(url: str) -> bytes:
+    """Download and sanity-check one transcript PDF from its Screener-listed URL."""
+    resp = requests.get(url, headers=HEADERS, timeout=30)
+    resp.raise_for_status()
+    if not resp.content.startswith(b"%PDF"):
+        raise ValueError(f"response wasn't a PDF ({url})")
+    return resp.content
+
+
 def download_transcripts(ticker: str, statement: str = "consolidated", out_dir: str = "cocnall-scripts") -> int:
     transcripts = fetch_transcripts(ticker, statement)
     if not transcripts:
@@ -71,24 +80,20 @@ def download_transcripts(ticker: str, statement: str = "consolidated", out_dir: 
 
     downloaded = 0
     for t in transcripts:
-        filename = f"{_slug(t['date'])}.pdf"
+        filename = f"{slug(t['date'])}.pdf"
         path = os.path.join(dest, filename)
         if os.path.exists(path):
             print(f"  SKIP {filename}: already downloaded")
             continue
 
         try:
-            pdf_resp = requests.get(t["url"], headers=HEADERS, timeout=30)
-            pdf_resp.raise_for_status()
-        except requests.RequestException as e:
+            content = fetch_pdf(t["url"])
+        except (requests.RequestException, ValueError) as e:
             print(f"  SKIP {filename}: download failed ({e})")
-            continue
-        if not pdf_resp.content.startswith(b"%PDF"):
-            print(f"  SKIP {filename}: response wasn't a PDF ({t['url']})")
             continue
 
         with open(path, "wb") as f:
-            f.write(pdf_resp.content)
+            f.write(content)
         print(f"  {t['date']} -> {path}")
         downloaded += 1
 

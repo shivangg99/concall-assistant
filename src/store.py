@@ -51,3 +51,9 @@ def stats():
         key = (m["ticker"], m["quarter"])
         by_ticker_quarter[key] = by_ticker_quarter.get(key, 0) + 1
     return {"total_chunks": len(all_meta), "by_ticker_quarter": by_ticker_quarter}
+
+
+def available_tickers() -> list[str]:
+    """Tickers that actually have chunks in the store right now - used to
+    tell a query apart from a ticker that simply hasn't been ingested yet."""
+    return sorted({t for (t, _q) in stats()["by_ticker_quarter"].keys()})
