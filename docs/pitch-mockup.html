@@ -1,0 +1,428 @@
+<title>Ask The Call</title>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* host "existing site" palette - deliberately conventional finance-blue/slate */
+    --bg: #F5F6F8;
+    --surface: #FFFFFF;
+    --ink: #14181F;
+    --ink-soft: #5B6472;
+    --ink-faint: #8A93A0;
+    --line: #E1E4E9;
+    --line-soft: #EDEFF2;
+    --host-accent: #2E4A7D;
+    --host-accent-soft: #EAEEF5;
+    --up: #12805C;
+    --down: #B3261E;
+
+    /* the one bold spend: the new AI feature being pitched */
+    --feature: #0F6B63;
+    --feature-ink: #0B4F49;
+    --feature-tint: #E8F4F2;
+    --feature-tint-2: #F5FAF9;
+    --feature-line: #BEDDD9;
+    --feature-badge: #B8860B;
+    --feature-badge-tint: #FBF3DF;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- framing (outside the mockup) ---------- */
+  .frame-wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--feature-ink);
+    background: var(--feature-tint);
+    border: 1px solid var(--feature-line);
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 14px;
+  }
+  .framing-copy {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 62ch;
+    margin: 0 0 28px;
+  }
+  .framing-copy strong { color: var(--ink); }
+
+  /* ---------- browser chrome around the mock page ---------- */
+  .browser-frame {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(20,24,31,0.04), 0 12px 32px -16px rgba(20,24,31,0.18);
+  }
+  .browser-chrome {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #EEF0F3;
+    border-bottom: 1px solid var(--line);
+  }
+  .chrome-dots { display: flex; gap: 6px; }
+  .chrome-dots span { width: 9px; height: 9px; border-radius: 50%; background: #D3D7DD; display: inline-block; }
+  .chrome-url {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-faint);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 4px 10px;
+  }
+
+  /* ---------- mock site itself ---------- */
+  .mock-nav {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  .mock-logo {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--host-accent);
+    letter-spacing: -0.01em;
+  }
+  .mock-logo span { color: var(--ink-faint); font-weight: 500; }
+  .mock-nav-links { display: flex; gap: 22px; font-size: 13.5px; color: var(--ink-soft); }
+  .mock-nav-links span:first-child { color: var(--host-accent); font-weight: 600; }
+  .mock-nav-search {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-faint);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 5px 12px;
+    background: var(--bg);
+  }
+
+  .stock-header { padding: 22px 28px 0; }
+  .stock-id-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .ticker-tag {
+    font-family: var(--mono); font-weight: 600; font-size: 13px;
+    background: var(--host-accent-soft); color: var(--host-accent);
+    padding: 2px 8px; border-radius: 4px; letter-spacing: 0.02em;
+  }
+  .company-name { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .price-row { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
+  .price { font-family: var(--mono); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .price-change { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--up); }
+  .mock-note { font-size: 11.5px; color: var(--ink-faint); margin-left: 4px; }
+
+  .mock-tabs { display: flex; gap: 26px; margin-top: 18px; border-bottom: 1px solid var(--line); }
+  .mock-tab {
+    font-size: 13.5px; color: var(--ink-faint); padding-bottom: 10px;
+    border-bottom: 2px solid transparent;
+  }
+  .mock-tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--host-accent); }
+
+  .layout { display: grid; grid-template-columns: minmax(0,1fr) 220px; gap: 24px; padding: 22px 28px 28px; }
+
+  /* ---------- the featured module: the one place we spend boldness ---------- */
+  .qa-module {
+    background: var(--feature-tint-2);
+    border: 1px solid var(--feature-line);
+    border-radius: 14px;
+    padding: 22px 24px 20px;
+    margin-bottom: 22px;
+  }
+  .qa-module-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .qa-badge {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em;
+    color: var(--feature-badge); background: var(--feature-badge-tint);
+    padding: 2px 7px; border-radius: 4px;
+  }
+  .qa-title { font-size: 17px; font-weight: 700; color: var(--feature-ink); letter-spacing: -0.01em; }
+  .qa-sub { font-size: 13.5px; color: var(--ink-soft); margin: 4px 0 16px; max-width: 56ch; }
+
+  .qa-examples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .qa-chip {
+    font-size: 13px; color: var(--feature-ink); background: var(--surface);
+    border: 1px solid var(--feature-line); border-radius: 999px; padding: 6px 13px;
+    cursor: pointer; transition: background 0.15s ease;
+  }
+  .qa-chip:hover { background: var(--feature-tint); }
+
+  .qa-input-row {
+    display: flex; gap: 8px; background: var(--surface);
+    border: 1px solid var(--feature-line); border-radius: 9px; padding: 4px 4px 4px 14px;
+  }
+  .qa-input-row input {
+    flex: 1; border: none; outline: none; font-family: var(--sans); font-size: 14px;
+    background: transparent; color: var(--ink); padding: 8px 0;
+  }
+  .qa-input-row input::placeholder { color: var(--ink-faint); }
+  .qa-send {
+    border: none; background: var(--feature); color: #fff; font-weight: 600; font-size: 13px;
+    border-radius: 6px; padding: 8px 16px; cursor: pointer;
+  }
+  .qa-send:hover { background: var(--feature-ink); }
+
+  .qa-answer { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--feature-line); display: none; }
+  .qa-answer.show { display: block; }
+  .qa-thinking { font-size: 13px; color: var(--ink-faint); font-style: italic; }
+  .qa-answer-text { font-size: 14px; line-height: 1.6; color: var(--ink); }
+  .qa-answer-text p { margin: 0 0 10px; }
+  .qa-answer-text ul { margin: 0 0 10px; padding-left: 20px; }
+  .qa-answer-text li { margin-bottom: 6px; }
+  .qa-answer-text b { font-weight: 600; }
+  .qa-fallback { font-size: 13.5px; color: var(--ink-soft); font-style: italic; }
+
+  .qa-sources-toggle {
+    font-family: var(--mono); font-size: 11.5px; color: var(--feature); cursor: pointer;
+    margin-top: 10px; display: inline-block; user-select: none;
+  }
+  .qa-sources { display: none; margin-top: 8px; }
+  .qa-sources.show { display: block; }
+  .qa-source-card {
+    font-size: 12.5px; color: var(--ink-soft); background: var(--surface);
+    border: 1px solid var(--line-soft); border-radius: 6px; padding: 6px 10px; margin-bottom: 5px;
+  }
+  .qa-source-card b { color: var(--feature-ink); }
+
+  /* ---------- everything below the feature: deliberately quieter/denser ---------- */
+  .legacy-section-title {
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 10px;
+  }
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden;
+    margin-bottom: 18px;
+  }
+  .stat-cell { background: var(--surface); padding: 10px 12px; }
+  .stat-label { font-size: 10.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-value { font-family: var(--mono); font-size: 14.5px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  .chart-placeholder {
+    border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px 10px; background: var(--surface);
+  }
+  .chart-placeholder svg { display: block; width: 100%; height: auto; }
+
+  /* ---------- right rail: inert, quiet ---------- */
+  .rail-block { margin-bottom: 20px; }
+  .rail-title {
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 8px;
+  }
+  .rail-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid var(--line-soft); }
+  .rail-row span:first-child { color: var(--ink-soft); }
+  .rail-row span:last-child { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .peer-item { font-size: 12.5px; color: var(--ink-soft); padding: 5px 0; border-bottom: 1px solid var(--line-soft); }
+
+  .closing-note {
+    margin-top: 22px; font-size: 13px; color: var(--ink-soft); max-width: 62ch;
+  }
+  .closing-note b { color: var(--ink); }
+
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<div class="frame-wrap">
+  <div class="eyebrow">Concept mockup</div>
+  <p class="framing-copy">
+    How an embedded earnings-call Q&amp;A feature could sit inside <strong>your platform's</strong> existing stock page —
+    swap in your own branding around it. Every citation in the widget below is real, pulled from Jindal SAW's
+    actual public earnings-call transcripts by the system already running standalone today.
+  </p>
+
+  <div class="browser-frame">
+    <div class="browser-chrome">
+      <div class="chrome-dots"><span></span><span></span><span></span></div>
+      <div class="chrome-url">yourplatform.com/stocks/JINDALSAW</div>
+    </div>
+
+    <nav class="mock-nav">
+      <div class="mock-logo">[Your Platform]<span> · Markets</span></div>
+      <div class="mock-nav-links">
+        <span>Stocks</span><span>Screener</span><span>Watchlist</span><span>News</span>
+      </div>
+      <div class="mock-nav-search">⌕ Search stocks</div>
+    </nav>
+
+    <div class="stock-header">
+      <div class="stock-id-row">
+        <span class="ticker-tag">JINDALSAW</span>
+        <span class="company-name">Jindal SAW Limited</span>
+      </div>
+      <div class="price-row">
+        <span class="price">₹186.40</span>
+        <span class="price-change">▲ 2.3%</span>
+        <span class="mock-note">illustrative — not live data</span>
+      </div>
+      <div class="mock-tabs">
+        <span class="mock-tab">Overview</span>
+        <span class="mock-tab">Financials</span>
+        <span class="mock-tab active">Concalls &amp; Transcripts</span>
+        <span class="mock-tab">Peers</span>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div>
+        <div class="qa-module">
+          <div class="qa-module-head">
+            <span class="qa-badge">NEW</span>
+            <span class="qa-title">Ask about earnings calls</span>
+          </div>
+          <p class="qa-sub">
+            Grounded in Jindal SAW's actual transcripts — every answer cited to quarter and speaker, never invented.
+          </p>
+
+          <div class="qa-examples">
+            <span class="qa-chip" data-q="orderbook">What's the current order book size and mix?</span>
+            <span class="qa-chip" data-q="debt">How has debt reduction commentary changed over time?</span>
+          </div>
+
+          <div class="qa-input-row">
+            <input type="text" id="qa-input" placeholder="Ask anything about Jindal SAW's earnings calls...">
+            <button class="qa-send" id="qa-send">Ask</button>
+          </div>
+
+          <div class="qa-answer" id="qa-answer">
+            <div id="qa-answer-body"></div>
+          </div>
+        </div>
+
+        <div class="legacy-section-title">Financial snapshot</div>
+        <div class="stat-grid">
+          <div class="stat-cell"><div class="stat-label">Revenue (Q3FY25)</div><div class="stat-value">₹4,521 Cr</div></div>
+          <div class="stat-cell"><div class="stat-label">EBITDA Margin</div><div class="stat-value">~14.2%</div></div>
+          <div class="stat-cell"><div class="stat-label">Net Profit</div><div class="stat-value">₹312 Cr</div></div>
+          <div class="stat-cell"><div class="stat-label">ROE</div><div class="stat-value">18.6%</div></div>
+        </div>
+
+        <div class="legacy-section-title">Price history</div>
+        <div class="chart-placeholder">
+          <svg viewBox="0 0 560 120" role="img" aria-label="Generic illustrative price chart, not real data">
+            <polyline points="0,90 40,84 80,88 120,70 160,76 200,58 240,64 280,50 320,55 360,40 400,46 440,30 480,36 520,20 560,26"
+              fill="none" stroke="#2E4A7D" stroke-width="1.6"/>
+            <line x1="0" y1="110" x2="560" y2="110" stroke="#E1E4E9" stroke-width="1"/>
+          </svg>
+        </div>
+      </div>
+
+      <div>
+        <div class="rail-block">
+          <div class="rail-title">Key stats</div>
+          <div class="rail-row"><span>Market cap</span><span>₹8,940 Cr</span></div>
+          <div class="rail-row"><span>P/E</span><span>17.8</span></div>
+          <div class="rail-row"><span>52W range</span><span>142–210</span></div>
+        </div>
+        <div class="rail-block">
+          <div class="rail-title">Peers</div>
+          <div class="peer-item">Ratnamani Metals</div>
+          <div class="peer-item">Welspun Corp</div>
+          <div class="peer-item">Man Industries</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="closing-note">
+    <b>What's real here:</b> the widget's answers and citations. <b>What's a placeholder:</b> the price, chart, and
+    everything outside the Q&amp;A module — swap that chrome for your own product's actual layout and data.
+  </p>
+</div>
+
+<script>
+  const ANSWERS = {
+    orderbook: {
+      html: `<p>In the most recent quarter (<b>Q1FY27</b>), the order book stood at <b>1.78 million tons</b>, of which
+        0.75 million tons were export orders — including 6.08 lakh tons of Helical SAW job-work
+        (Q1FY27, Sailesh Raja). Management called the book "quite consistent" despite ongoing geopolitical
+        headwinds (Q1FY27, Rajeev Goyal). Within exports, roughly 60% comes from the Middle East and 40% from
+        non-Middle East markets (Q1FY27, Rajeev Goyal).</p>`,
+      sources: [
+        ["Q1FY27", "Rajeev Goyal", "Management", "Q&A"],
+        ["Q1FY27", "Sailesh Raja", "Analyst", "Q&A"],
+        ["Q1FY27", "Vinay Kumar Gupta", "Management", "Prepared Remarks"],
+      ],
+    },
+    debt: {
+      html: `<ul>
+        <li><b>Q3FY25</b> — Financial charges fell to ₹443 Cr from ₹586 Cr YoY; management was "approaching the
+          banks" to cut long-term debt further before year-end (Q3FY25, Neeraj Kumar).</li>
+        <li><b>Q4FY25</b> — Debt improved further on stronger collections; management said the profile
+          "is well under control and would remain that way" (Q4FY25, Neeraj Kumar).</li>
+        <li><b>Q1FY26</b> — Long-term debt was prepaid using available cash, shifting the mix toward
+          working-capital loans (Q1FY26, Vinay Kumar).</li>
+      </ul>
+      <p>Trend: a steady move from cutting financial charges toward actively prepaying long-term debt.</p>`,
+      sources: [
+        ["Q3FY25", "Neeraj Kumar", "Management", "Prepared Remarks"],
+        ["Q4FY25", "Neeraj Kumar", "Management", "Prepared Remarks"],
+        ["Q1FY26", "Vinay Kumar", "Management", "Q&A"],
+      ],
+    },
+  };
+
+  const answerBox = document.getElementById('qa-answer');
+  const answerBody = document.getElementById('qa-answer-body');
+
+  function renderAnswer(key) {
+    const data = ANSWERS[key];
+    answerBox.classList.add('show');
+    answerBody.innerHTML = '<div class="qa-thinking">Reading the transcripts…</div>';
+    setTimeout(() => {
+      if (data) {
+        const sourcesHtml = data.sources.map(([q, spk, role, section]) =>
+          `<div class="qa-source-card"><b>${q}</b> · ${spk} (${role}) · ${section}</div>`
+        ).join('');
+        answerBody.innerHTML = `
+          <div class="qa-answer-text">${data.html}</div>
+          <span class="qa-sources-toggle" onclick="this.nextElementSibling.classList.toggle('show')">▸ Sources (${data.sources.length})</span>
+          <div class="qa-sources">${sourcesHtml}</div>
+        `;
+      } else {
+        answerBody.innerHTML = `<p class="qa-fallback">In the full integration, this would search Jindal SAW's
+          complete earnings history and return a cited answer in a few seconds — try one of the example
+          questions above for a live sample of a real answer.</p>`;
+      }
+    }, 700);
+  }
+
+  document.querySelectorAll('.qa-chip').forEach(chip => {
+    chip.addEventListener('click', () => renderAnswer(chip.dataset.q));
+  });
+  document.getElementById('qa-send').addEventListener('click', () => {
+    const val = document.getElementById('qa-input').value.trim();
+    renderAnswer(val ? null : null);
+  });
+  document.getElementById('qa-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('qa-send').click();
+  });
+</script>

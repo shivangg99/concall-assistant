@@ -7,7 +7,30 @@ from src.store import stats as store_stats, ticker_display_info
 st.set_page_config(page_title="Concall Assistant", page_icon="📞", layout="centered")
 
 st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+    /* Shared design tokens with the partner-pitch mockup (docs/pitch-mockup.html) -
+    same teal, same type pairing, so the standalone app and the "embedded in
+    someone else's site" concept read as one product family. */
+    :root {
+        --ink: #14181F; --ink-soft: #5B6472; --line: #E2E5E1;
+        --feature: #0F6B63; --feature-ink: #0B4F49;
+        --feature-tint: #E3EEEC; --feature-line: #C7DEDB;
+    }
+    .stApp, .stApp p, .stApp span, .stApp div, .stApp button, .stApp input,
+    .stApp textarea, .stApp h1, .stApp h2, .stApp h3, .stApp label, .stApp li {
+        font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    }
+    /* Streamlit's own chevrons/icons (sidebar toggle, expander arrows) are a
+    ligature-text icon font, not a symbol image - the blanket rule above
+    was overriding it too, so every icon rendered as literal text like
+    "keyboard_arrow_right". Restore the icon font specifically, after the
+    blanket rule so it wins on specificity. */
+    .stApp [data-testid="stIconMaterial"] { font-family: 'Material Symbols Rounded' !important; }
+    .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace !important; font-variant-numeric: tabular-nums; }
+
     /* Hide Streamlit's own branding, but NOT stExpandSidebarButton - that's
     the only way to reopen a collapsed sidebar on mobile, and it lives in
     the same header region as the buttons we do want gone. */
@@ -20,29 +43,36 @@ st.markdown("""
     [data-testid="stChatInput"] textarea { max-height: 5.5rem !important; }
 
     h1 { font-weight: 700; letter-spacing: -0.01em; }
-    p.subtitle { color: #5B6472; font-size: 1.02rem; margin-top: -0.6rem; margin-bottom: 1.8rem; }
+    p.subtitle { color: var(--ink-soft); font-size: 1.02rem; margin-top: -0.6rem; margin-bottom: 1.8rem; }
 
     .ticker-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.3rem 0 0.2rem; }
     .ticker-pill {
-        background: #E3EEEC; color: #0F6B63; border: 1px solid #C7DEDB;
+        font-family: 'IBM Plex Mono', ui-monospace, monospace !important;
+        background: var(--feature-tint); color: var(--feature-ink); border: 1px solid var(--feature-line);
         border-radius: 999px; padding: 0.15rem 0.7rem; font-size: 0.82rem; font-weight: 600;
         cursor: default;
     }
     .sidebar-label {
         font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
-        color: #5B6472; margin-bottom: 0.3rem;
+        color: var(--ink-soft); margin-bottom: 0.3rem;
     }
-    [data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] p { color: #5B6472; }
+    [data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] p { color: var(--ink-soft); }
 
     .source-card {
-        border: 1px solid #E2E5E1; border-radius: 8px; padding: 0.7rem 0.9rem;
+        border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 0.9rem;
         margin-bottom: 0.6rem; background: #FBFBFA;
     }
-    .source-meta { font-size: 0.83rem; font-weight: 600; color: #0F6B63; margin-bottom: 0.25rem; }
+    .source-meta { font-size: 0.83rem; font-weight: 600; color: var(--feature-ink); margin-bottom: 0.25rem; }
     .source-text { font-size: 0.85rem; color: #3A414B; }
 
-    /* left-align example-question button labels instead of Streamlit's default centered text */
-    div[data-testid="stButton"] button p { text-align: left; }
+    /* Example-question chips: compact, rounded, teal-on-tint - matching the
+    pitch mockup's qa-chip treatment, instead of full-width default buttons. */
+    div[data-testid="stButton"] button {
+        border-radius: 999px; border: 1px solid var(--feature-line); background: #FFFFFF;
+        color: var(--feature-ink); font-size: 0.83rem; padding: 0.4rem 0.9rem;
+    }
+    div[data-testid="stButton"] button:hover { background: var(--feature-tint); border-color: var(--feature-line); }
+    div[data-testid="stButton"] button p { text-align: left; font-size: 0.83rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -104,7 +134,7 @@ def render_sources(sources):
         for s in sources:
             st.markdown(
                 f"""<div class="source-card">
-                <div class="source-meta">{s['quarter']} · {s['speaker']} ({s['speaker_role']}) · {s['section']}</div>
+                <div class="source-meta"><span class="mono">{s['quarter']}</span> · {s['speaker']} ({s['speaker_role']}) · {s['section']}</div>
                 <div class="source-text">{s['text'][:500]}{"..." if len(s['text']) > 500 else ""}</div>
                 </div>""",
                 unsafe_allow_html=True,
@@ -122,9 +152,11 @@ if not st.session_state.messages:
         st.info("No companies are available to ask about yet.")
     else:
         st.caption("Try asking something like:")
-        for q in EXAMPLE_QUESTIONS:
-            if st.button(q, key=f"ex_{q}", use_container_width=True):
-                st.session_state.pending_question = q
+        cols = st.columns(len(EXAMPLE_QUESTIONS))
+        for col, q in zip(cols, EXAMPLE_QUESTIONS):
+            with col:
+                if st.button(q, key=f"ex_{q}", use_container_width=True):
+                    st.session_state.pending_question = q
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):

@@ -13,6 +13,10 @@ see [`docs/internals.html`](docs/internals.html) — download it and open in a b
 live at [claude.ai/code/artifact/fa72f88a-ecfb-4f79-975f-0bc0cdfd204c](https://claude.ai/code/artifact/fa72f88a-ecfb-4f79-975f-0bc0cdfd204c)
 (private artifact link — visible only to the account that created it).
 
+[`docs/pitch-mockup.html`](docs/pitch-mockup.html) is a concept mockup for pitching this as an
+embedded feature on someone else's stock-research site — a generic "your platform" page with the
+Q&A widget dropped in, using real cited answers from the JINDALSAW data already ingested here.
+
 ## Prerequisites
 
 - Python 3.9+
