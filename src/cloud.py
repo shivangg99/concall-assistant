@@ -43,9 +43,14 @@ def _get_client():
 
 
 def list_tickers() -> list[str]:
-    """Top-level 'folders' in the bucket, i.e. the ticker prefixes."""
+    """Top-level 'folders' in the bucket, i.e. the ticker prefixes. Anything
+    starting with "_" is reserved for non-ticker use (e.g. "_snapshot/" for
+    the DB backup - see src/db_sync.py) and excluded here."""
     resp = _get_client().list_objects_v2(Bucket=BUCKET, Delimiter="/")
-    return sorted(p["Prefix"].rstrip("/") for p in resp.get("CommonPrefixes", []))
+    return sorted(
+        p["Prefix"].rstrip("/") for p in resp.get("CommonPrefixes", [])
+        if not p["Prefix"].startswith("_")
+    )
 
 
 def list_pdfs(ticker: str) -> list[str]:
@@ -74,7 +79,7 @@ def upload_file(local_path: str, key: str):
     _get_client().upload_file(local_path, BUCKET, key)
 
 
-def upload_bytes(data: bytes, key: str):
+def upload_bytes(data: bytes, key: str, content_type: str = "application/pdf"):
     """Write straight to R2 without a local file - used when a transcript is
-    fetched from a scraper directly into memory."""
-    _get_client().put_object(Bucket=BUCKET, Key=key, Body=data, ContentType="application/pdf")
+    fetched from a scraper directly into memory, or for the DB snapshot zip."""
+    _get_client().put_object(Bucket=BUCKET, Key=key, Body=data, ContentType=content_type)

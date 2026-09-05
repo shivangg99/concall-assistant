@@ -1,10 +1,39 @@
 """Streamlit chat UI for the concall RAG assistant. Run with: streamlit run app.py"""
+import os
+
 import streamlit as st
 
-from src.query import answer as run_query
-from src.store import stats as store_stats, ticker_display_info
-
 st.set_page_config(page_title="Concall Assistant", page_icon="📞", layout="centered")
+
+# On Streamlit Community Cloud, keys live in st.secrets (set via the
+# dashboard), not a .env file - copy them into os.environ so the rest of
+# the codebase (which reads via os.environ, for local .env compatibility)
+# works unchanged in both places. Running locally with no secrets.toml,
+# st.secrets raises on access, which just means .env already has what's
+# needed.
+try:
+    for _k, _v in st.secrets.items():
+        os.environ.setdefault(_k, str(_v))
+except Exception:
+    pass
+
+from src.store import PERSIST_DIR  # noqa: E402
+
+# A freshly deployed instance starts with an empty disk - data/chroma/
+# only exists on whichever machine last ran ingestion. Pull down the last
+# snapshot published via `python -m src.db_sync upload` before anything
+# tries to read the store. No-op if data/chroma/ already has content
+# (i.e. running locally against your own ingested data).
+if not os.path.isdir(PERSIST_DIR) or not os.listdir(PERSIST_DIR):
+    with st.spinner("Loading transcript data..."):
+        try:
+            from src.db_sync import download_snapshot
+            download_snapshot()
+        except Exception as e:
+            st.warning(f"Couldn't load the transcript data snapshot from R2: {e}")
+
+from src.query import answer as run_query  # noqa: E402
+from src.store import stats as store_stats, ticker_display_info  # noqa: E402
 
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -115,10 +144,14 @@ with st.sidebar:
     st.divider()
     st.caption("Answers are based only on the actual call transcripts — never outside knowledge or estimates.")
 
+MAX_QUESTIONS_PER_SESSION = 20
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "filter_key" not in st.session_state:
     st.session_state.filter_key = None
+if "question_count" not in st.session_state:
+    st.session_state.question_count = 0
 
 # Switching company/quarter mid-conversation changes what's actually being
 # asked about, so treat it as a new conversation rather than let a follow-up
@@ -164,10 +197,19 @@ for msg in st.session_state.messages:
         if msg.get("sources"):
             render_sources(msg["sources"])
 
-typed_question = st.chat_input("Ask about the transcripts...", disabled=not tickers)
+at_limit = st.session_state.question_count >= MAX_QUESTIONS_PER_SESSION
+typed_question = st.chat_input(
+    "Ask about the transcripts..." if not at_limit else "Session limit reached - refresh the page to continue",
+    disabled=not tickers or at_limit,
+)
 question = typed_question or st.session_state.pop("pending_question", None)
 
+if question and at_limit:
+    st.warning(f"You've reached the {MAX_QUESTIONS_PER_SESSION}-question limit for this session. Refresh the page to start a new one.")
+    question = None
+
 if question:
+    st.session_state.question_count += 1
     history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
 
     st.session_state.messages.append({"role": "user", "content": question})

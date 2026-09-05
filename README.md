@@ -84,6 +84,39 @@ source .venv/bin/activate
 python -m src.query "How has management's commentary on debt reduction evolved across recent quarters?"
 ```
 
+## Deploying it as a public site
+
+The app is stateless w.r.t. its vector data at runtime, but Chroma itself is just local files
+(`data/chroma/`) — a deployed instance runs on a different machine with an empty disk, so that
+data has to get there somehow. The bridge is a DB snapshot in R2:
+
+```bash
+source .venv/bin/activate
+python -m src.db_sync upload     # run locally after ingesting new data, to publish it
+```
+
+`app.py` calls the matching `download_snapshot()` automatically on startup if `data/chroma/` is
+empty — so a fresh deployment bootstraps itself from whatever you last published. Running
+locally against your own already-ingested data is unaffected (it skips the download entirely
+since local data already exists).
+
+To deploy on **[Streamlit Community Cloud](https://share.streamlit.io)** (free):
+1. Push this repo to GitHub (already done if you're reading this from there).
+2. On share.streamlit.io, connect your GitHub account, pick this repo/branch and `app.py`.
+3. In the app's **Settings -> Secrets**, paste the same key/value pairs from your local `.env`
+   in TOML format (`ANTHROPIC_API_KEY = "..."`, `VOYAGE_API_KEY = "..."`, the `R2_*` fields) —
+   `.env` itself never gets deployed since it's gitignored.
+4. Deploy. First load will show "Loading transcript data..." while it pulls the R2 snapshot,
+   then behaves identically to running it locally.
+
+Whenever you ingest new tickers or quarters locally, re-run `python -m src.db_sync upload` and
+the next visit to the deployed app (or a manual reboot from the Streamlit Cloud dashboard) picks
+it up — there's no automatic re-sync, this is a manual "publish" step by design for now.
+
+A public, unauthenticated deployment means API cost scales with anyone's usage, not just yours -
+`app.py` caps each browser session to 20 questions as a lightweight guardrail against a bot or a
+single heavy visitor running up spend; there's no other access control by default.
+
 ## Project layout
 
 ```
@@ -95,6 +128,7 @@ src/embeddings.py                Voyage AI embedding calls, with rate-limit retr
 src/store.py                     Chroma persistent vector store wrapper
 src/ingest.py                    ingestion orchestrator: R2 -> parse -> chunk -> embed -> Chroma
 src/query.py                     retrieval + Claude generation with citations
+src/db_sync.py                   publish/bootstrap the Chroma DB to/from R2, for deployment
 app.py                           Streamlit chat UI
 data/chroma/                     local vector DB (gitignored, rebuilt by ingestion)
 docs/internals.html              function-by-function pipeline walkthrough, with diagram
