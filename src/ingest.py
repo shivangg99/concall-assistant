@@ -62,7 +62,7 @@ def ingest_ticker(ticker: str, verbose: bool = True):
 
         chunks = chunk_turns(
             turns, ticker, meta["quarter"], meta["fiscal_year"],
-            meta["call_date"], meta["management_names"],
+            meta["call_date"], meta["management_names"], meta["company_name"],
         )
         if verbose:
             print(f"  {filename} -> {meta['quarter']} ({meta['call_date']}): {len(chunks)} chunks")

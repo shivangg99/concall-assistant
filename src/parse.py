@@ -46,7 +46,9 @@ COMPANY_NAME_RE = re.compile(r'[“"]([A-Z][A-Za-z&\.\s]+?(?:Limited|Ltd\.?))', 
 
 def extract_company_name(cover_text: str) -> str:
     m = COMPANY_NAME_RE.search(cover_text)
-    return m.group(1).strip() if m else ""
+    if not m:
+        return ""
+    return re.sub(r'\s+', ' ', m.group(1)).strip()
 
 
 def extract_metadata(cover_text: str):

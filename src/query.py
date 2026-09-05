@@ -65,7 +65,20 @@ def _format_context(hits: list[dict]) -> str:
     return "\n\n---\n\n".join(blocks)
 
 
-def answer(question: str, top_k: int = 8, ticker: str = None, quarter: str = None, stream: bool = False):
+MAX_HISTORY_TURNS = 3  # 3 user+assistant exchanges - enough for follow-ups, bounded token growth
+
+
+def answer(
+    question: str, top_k: int = 8, ticker: str = None, quarter: str = None,
+    history: list[dict] = None, stream: bool = False,
+):
+    """history: prior turns as [{"role": "user"|"assistant", "content": str}, ...],
+    oldest first, NOT including the current question. Used two ways: the most
+    recent user turn is folded into the retrieval query (so a follow-up like
+    "what about their export mix?" can still find the right chunks even
+    though it has no company name of its own), and the full recent history
+    is passed to Claude so the answer can read as an actual continuation
+    rather than each question being answered in a vacuum."""
     known = available_tickers()
 
     # A ticker filter (e.g. from the UI dropdown or a CLI --ticker) that
@@ -78,7 +91,11 @@ def answer(question: str, top_k: int = 8, ticker: str = None, quarter: str = Non
             "sources": [],
         }
 
-    hits = retrieve(question, top_k=top_k, ticker=ticker, quarter=quarter)
+    history = history or []
+    last_user_turn = next((h["content"] for h in reversed(history) if h["role"] == "user"), None)
+    retrieval_query = f"{last_user_turn}\n{question}" if last_user_turn else question
+
+    hits = retrieve(retrieval_query, top_k=top_k, ticker=ticker, quarter=quarter)
     if not hits:
         return {"answer": "No relevant transcript chunks found for this query.", "sources": []}
 
@@ -87,6 +104,10 @@ def answer(question: str, top_k: int = 8, ticker: str = None, quarter: str = Non
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         tickers=", ".join(known) if known else "(none ingested yet)"
     )
+    messages = [
+        {"role": h["role"], "content": h["content"]}
+        for h in history[-(MAX_HISTORY_TURNS * 2):]
+    ] + [{"role": "user", "content": user_message}]
 
     client = _get_client()
     if stream:
@@ -94,14 +115,14 @@ def answer(question: str, top_k: int = 8, ticker: str = None, quarter: str = Non
             model=GENERATION_MODEL,
             max_tokens=2048,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+            messages=messages,
         ), hits
 
     resp = client.messages.create(
         model=GENERATION_MODEL,
         max_tokens=2048,
         system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+        messages=messages,
     )
     text = next((block.text for block in resp.content if block.type == "text"), "")
     return {"answer": text, "sources": hits}

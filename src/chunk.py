@@ -47,7 +47,7 @@ def _is_operator_noise(speaker: str, content: str) -> bool:
     return speaker.lower() == "moderator" and any(kw in low for kw in DISCONNECT_KEYWORDS)
 
 
-def chunk_turns(turns, ticker, quarter, fiscal_year, call_date, management_names):
+def chunk_turns(turns, ticker, quarter, fiscal_year, call_date, management_names, company_name=""):
     qa_start = find_qa_start(turns)
     chunks = []
 
@@ -57,7 +57,7 @@ def chunk_turns(turns, ticker, quarter, fiscal_year, call_date, management_names
             continue
         _emit(chunks, {
             "chunk_id": f"{ticker}_{quarter}_PR{i:03d}",
-            "ticker": ticker, "quarter": quarter, "fiscal_year": fiscal_year,
+            "ticker": ticker, "company_name": company_name, "quarter": quarter, "fiscal_year": fiscal_year,
             "call_date": call_date, "speaker": speaker,
             "speaker_role": speaker_role(speaker, management_names),
             "section": "Prepared Remarks", "text": content,
@@ -84,7 +84,7 @@ def chunk_turns(turns, ticker, quarter, fiscal_year, call_date, management_names
             continue
         _emit(chunks, {
             "chunk_id": f"{ticker}_{quarter}_QA{j:03d}",
-            "ticker": ticker, "quarter": quarter, "fiscal_year": fiscal_year,
+            "ticker": ticker, "company_name": company_name, "quarter": quarter, "fiscal_year": fiscal_year,
             "call_date": call_date, "speaker": asker,
             "speaker_role": speaker_role(asker, management_names),
             "section": "Q&A", "text": merged_text,

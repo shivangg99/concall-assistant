@@ -67,3 +67,34 @@ def available_tickers() -> list[str]:
     """Tickers that actually have chunks in the store right now - used to
     tell a query apart from a ticker that simply hasn't been ingested yet."""
     return sorted({t for (t, _q) in stats()["by_ticker_quarter"].keys()})
+
+
+def _quarter_sort_key(quarter: str):
+    """"Q3FY24" -> (24, 3) so quarters sort chronologically, not
+    alphabetically (alphabetically "Q1FY22" < "Q4FY21", which is backwards)."""
+    q, fy = quarter[1], quarter[-2:]
+    return (int(fy), int(q))
+
+
+def ticker_display_info() -> dict:
+    """{ticker: {"company_name": ..., "quarter_range": (oldest, newest)}} -
+    company_name falls back to the ticker itself for chunks ingested before
+    that field existed."""
+    col = get_collection()
+    all_meta = col.get(include=["metadatas"])["metadatas"]
+    by_ticker = {}
+    for m in all_meta:
+        t = m["ticker"]
+        by_ticker.setdefault(t, {"company_name": "", "quarters": set()})
+        by_ticker[t]["quarters"].add(m["quarter"])
+        if not by_ticker[t]["company_name"] and m.get("company_name"):
+            by_ticker[t]["company_name"] = m["company_name"]
+
+    info = {}
+    for t, data in by_ticker.items():
+        quarters = sorted(data["quarters"], key=_quarter_sort_key)
+        info[t] = {
+            "company_name": data["company_name"] or t,
+            "quarter_range": (quarters[0], quarters[-1]) if quarters else (None, None),
+        }
+    return info
