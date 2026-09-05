@@ -29,6 +29,16 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float]]):
     )
 
 
+def existing_ids(ids: list[str]) -> set[str]:
+    """Which of these chunk_ids are already stored - a cheap local lookup,
+    no embedding API call - used to skip re-embedding chunks that haven't
+    changed since the last ingestion run."""
+    if not ids:
+        return set()
+    res = get_collection().get(ids=ids, include=[])
+    return set(res["ids"])
+
+
 def query(query_embedding: list[float], top_k: int = 8, where: dict = None):
     col = get_collection()
     res = col.query(

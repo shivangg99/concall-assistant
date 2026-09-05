@@ -17,7 +17,7 @@ from . import cloud
 from .parse import parse_transcript
 from .chunk import chunk_turns
 from .embeddings import embed_documents
-from .store import upsert_chunks, stats
+from .store import upsert_chunks, stats, existing_ids
 
 load_dotenv()
 
@@ -73,16 +73,31 @@ def ingest_ticker(ticker: str, verbose: bool = True):
             print(f"No chunks produced for {ticker}.")
         return 0
 
-    for i in range(0, len(all_chunks), EMBED_BATCH_SIZE):
-        batch = all_chunks[i:i + EMBED_BATCH_SIZE]
+    # Skip re-embedding chunks that are already in the store unchanged - the
+    # chunk_id is stable for identical (ticker, quarter, section, index), so
+    # a chunk that's already there is already correct. Only new/changed
+    # chunk_ids (a newly-recovered file, or a chunking-logic change) get an
+    # embedding call - this is what makes re-running cheap and fast instead
+    # of re-embedding a whole ticker's history every time.
+    already_have = existing_ids([c["chunk_id"] for c in all_chunks])
+    new_chunks = [c for c in all_chunks if c["chunk_id"] not in already_have]
+
+    if verbose:
+        print(f"  {len(all_chunks)} chunk(s) total, {len(new_chunks)} new (skipping {len(already_have)} already stored)")
+
+    if not new_chunks:
+        return len(all_chunks)
+
+    for i in range(0, len(new_chunks), EMBED_BATCH_SIZE):
+        batch = new_chunks[i:i + EMBED_BATCH_SIZE]
         embeddings = embed_documents([c["text"] for c in batch])
         upsert_chunks(batch, embeddings)
         if verbose:
-            print(f"  embedded+stored {i + len(batch)}/{len(all_chunks)}")
-        if i + EMBED_BATCH_SIZE < len(all_chunks):
+            print(f"  embedded+stored {i + len(batch)}/{len(new_chunks)}")
+        if i + EMBED_BATCH_SIZE < len(new_chunks):
             time.sleep(SECONDS_BETWEEN_BATCHES)
 
-    return len(all_chunks)
+    return len(new_chunks)
 
 
 def main():

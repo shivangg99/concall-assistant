@@ -10,7 +10,11 @@ cocnall-scripts/<TICKER>/ and it parses the same way.
 import re
 import pdfplumber
 
-QUARTER_RE = re.compile(r"Q(\d)\s*FY\s*['’]?\s*(\d{2,4})", re.I)
+# Between "Q<digit>" and "FY<year>" some companies insert extra text, e.g.
+# "Q3 & 9M FY23" (a cumulative-nine-months figure tacked on) - the .{0,20}?
+# gap tolerates that (and the plain "Q2FY26" / "Q4 FY'24" cases) without
+# spanning far enough to risk matching an unrelated quarter mention.
+QUARTER_RE = re.compile(r"Q(\d).{0,20}?FY\s*['’\-]?\s*(\d{2,4})", re.I)
 DATE_RE = re.compile(r'([A-Z][a-z]+ \d{1,2},\s*20\d\d)')
 SPEAKER_RE = re.compile(r"^([A-Z][A-Za-z\.\'\-\s]{2,40}):\s+(.*)$")
 COVER_PAGE_MARKERS = ("SEBI (Listing Obligations", "MANAGEMENT:")
